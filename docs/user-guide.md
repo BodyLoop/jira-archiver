@@ -8,8 +8,30 @@
 
 ## Install
 
+### As a uv tool (recommended for users)
+
+Install straight from the git repository; no clone is needed:
+
 ```
-git clone <repo> jira-archiver
+uv tool install git+https://github.com/BodyLoop/jira-archiver
+jira-archiver --help
+```
+
+This puts `jira-archiver` on your `PATH` (run `uv tool update-shell` once if uv says the tool
+directory is not on `PATH`). Use it like the `uv run jira-archiver` examples below, just without
+the `uv run` prefix. A `.env` file is read from the current working directory.
+
+- Run once without installing:
+  `uvx --from git+https://github.com/BodyLoop/jira-archiver jira-archiver PROJ --url https://jira.example.local`
+- Update: `uv tool upgrade jira-archiver` (or `uv tool install --force git+https://github.com/BodyLoop/jira-archiver`
+  to re-fetch the latest commit).
+- Pin a branch, tag or commit: `uv tool install git+https://github.com/BodyLoop/jira-archiver@<ref>`.
+- Remove: `uv tool uninstall jira-archiver`.
+
+### From a clone (for development)
+
+```
+git clone https://github.com/BodyLoop/jira-archiver jira-archiver
 cd jira-archiver
 uv sync
 ```

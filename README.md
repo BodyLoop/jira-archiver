@@ -17,6 +17,21 @@ Archive Jira Server / Data Center projects as a folder-per-ticket Markdown tree.
 
 ## Usage
 
+### As an installed tool (no clone needed)
+
+```
+uv tool install git+https://github.com/BodyLoop/jira-archiver
+jira-archiver PROJ --url https://jira.example.local
+
+# or run once without installing
+uvx --from git+https://github.com/BodyLoop/jira-archiver jira-archiver PROJ --url https://jira.example.local
+```
+
+Update with `uv tool upgrade jira-archiver` (or reinstall with `--force` to pick up the latest commit);
+remove with `uv tool uninstall jira-archiver`.
+
+### From a clone
+
 ```
 uv sync
 $env:JIRA_TOKEN = "..."          # Personal Access Token (Jira 8.14+)
