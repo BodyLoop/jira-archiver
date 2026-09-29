@@ -35,7 +35,7 @@ holding *all* information the ticket carries.
 
 | ID | Requirement |
 |---|---|
-| N1 | **Resumable.** A ticket is written to a temporary directory inside the project folder and renamed only when complete. Presence of `issue.json` marks a finished ticket; finished tickets are skipped unless `--force`. |
+| N1 | **Resumable.** A ticket is written to a temporary directory inside the project folder and renamed only when complete. Presence of `issue.json` marks a finished ticket; finished tickets are skipped unless `--force` or unless the ticket's `updated` timestamp in Jira differs from the one stored in its `issue.json` (incremental update). |
 | N2 | **Failure isolation.** A failing ticket is logged and collected; other tickets continue. Exit code is 1 if any ticket failed, and a re-run retries only those. |
 | N3 | **Retries.** GET requests are retried (up to 6 times, exponential backoff, honouring `Retry-After`) on HTTP 429, 500, 502, 503, 504. |
 | N4 | **Token confinement.** The token is sent only to the Jira host. Images from other hosts are downloaded without the Jira session. |
@@ -50,7 +50,7 @@ holding *all* information the ticket carries.
 - Sprints and other agile data appear only as raw field values.
 - `--dev-status` relies on an undocumented API that may change between versions.
 - Interrupted runs may leave `.<KEY>-*` temporary folders behind; they can be deleted safely.
-- Re-running without `--force` does not refresh changed tickets.
+- Change detection relies on the `updated` field; changes that don't touch it (watchers, votes, renamed linked tickets) need `--force`.
 
 ## Open decisions
 

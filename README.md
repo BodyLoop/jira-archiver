@@ -29,7 +29,7 @@ All options can also be set as `JIRA_*` environment variables or in a `.env` fil
 With a filled-in `.env`, just run `uv run jira-archiver`.
 
 Options: `--out`, `--jql`, `--ca-bundle`, `--insecure`, `--force`, `--dev-status`,
-`--fetch-external-images`. Finished tickets are skipped on re-run; failed ones are retried.
+`--fetch-external-images`. Re-runs are incremental: tickets whose `updated` timestamp is unchanged are skipped; changed and failed ones are fetched again (`--force` refreshes everything).
 
 ## Notes
 

@@ -114,6 +114,25 @@ def parse_args(argv=None):
     return opts
 
 
+def archived_row(path, updated, want_dev_status):
+    """Index row of an already archived ticket if it is still current, else None.
+
+    Current means: issue.json exists and holds the same `updated` timestamp Jira reports now
+    (and dev-status data, if requested now, was stored). Unreadable files count as not current.
+    """
+    if not updated or not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text("utf-8"))
+        f = data["issue"]["fields"]
+    except (OSError, ValueError, KeyError):
+        return None
+    if f.get("updated") != updated or (want_dev_status and "devStatus" not in data):
+        return None
+    return {"key": data["issue"]["key"], "summary": f.get("summary", ""),
+            "type": fmt(f.get("issuetype")), "status": fmt(f.get("status"))}
+
+
 def main(argv=None):
     opts = parse_args(argv)
 
@@ -138,15 +157,16 @@ def main(argv=None):
         (pdir / "project.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), "utf-8")
 
         jql = f'project = "{project}"' + (f" AND ({opts.jql})" if opts.jql else "") + " ORDER BY key ASC"
-        keys = [it["key"] for it in client.paged("/rest/api/2/search", "issues", jql=jql, fields="key")]
+        found = [(it["key"], (it.get("fields") or {}).get("updated"))
+                 for it in client.paged("/rest/api/2/search", "issues", jql=jql, fields="key,updated")]
+        keys = [k for k, _ in found]
         log(f"{project}: {len(keys)} tickets")
 
-        def process(pdir, progress, key):
-            existing = pdir / key / "issue.json"
-            if existing.exists() and not opts.force:
-                f = json.loads(existing.read_text("utf-8"))["issue"]["fields"]
-                return {"key": key, "summary": f.get("summary", ""),
-                        "type": fmt(f.get("issuetype")), "status": fmt(f.get("status"))}
+        def process(pdir, progress, key, updated):
+            if not opts.force:
+                row = archived_row(pdir / key / "issue.json", updated, opts.dev_status)
+                if row:
+                    return row
             log(f"  [{progress}] {key}")
             try:
                 return arch.archive(key, pdir)
@@ -157,7 +177,8 @@ def main(argv=None):
 
         with ThreadPoolExecutor(max_workers=opts.workers) as pool:
             progress = [f"{i}/{len(keys)}" for i in range(1, len(keys) + 1)]
-            results = pool.map(process, repeat(pdir), progress, keys)  # keeps ticket order
+            results = pool.map(process, repeat(pdir), progress, keys,
+                               [u for _, u in found])  # keeps ticket order
             rows = [r for r in results if r]
 
         L = [f"# {meta['project'].get('name', project)} ({project})", "",

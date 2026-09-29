@@ -53,7 +53,7 @@ command line, real environment variables, `.env` file, built-in default.
 | `--jql` | `JIRA_JQL` | Extra JQL, combined as `project = "X" AND (<jql>)`. |
 | `--ca-bundle` | `JIRA_CA_BUNDLE` | PEM file of your internal CA. |
 | `--insecure` | `JIRA_INSECURE` | Disable TLS verification. Not recommended. |
-| `--force` | `JIRA_FORCE` | Re-archive tickets that already exist. |
+| `--force` | `JIRA_FORCE` | Re-archive all tickets, even if unchanged in Jira. |
 | `--dev-status` | `JIRA_DEV_STATUS` | Also store linked Bitbucket repositories, branches and pull requests. |
 | `--fetch-external-images` | `JIRA_FETCH_EXTERNAL_IMAGES` | Download inline images hosted outside Jira (without sending the token). |
 | `--workers` | `JIRA_WORKERS` | Number of tickets archived in parallel (threads), default 4. Use 1 for sequential runs; lower it if Jira throttles (HTTP 429). |
@@ -78,9 +78,12 @@ variables override values in the file, so `JIRA_TOKEN` set by a CI system wins.
 
 ## Re-running
 
-- Finished tickets are skipped; only missing or failed tickets are fetched.
-- To refresh content, use `--force` (all tickets of the selected projects) or narrow with
-  `--jql`, e.g. `--jql "updated >= -7d" --force`.
+- Runs are incremental: the ticket listing includes each ticket's `updated` timestamp, and a ticket
+  is fetched again only if it is missing, failed earlier, or its `updated` differs from the one in
+  its stored `issue.json`. Unchanged tickets cost no per-ticket requests.
+- `--dev-status` given on a later run also fetches tickets that were archived without it.
+- `updated` does not change for everything (watchers, votes, or a linked ticket's renamed title
+  shown in links). Use `--force` for a full refresh, optionally narrowed with `--jql`.
 - Ticket listings (`<PROJ>/index.md`) are always regenerated.
 
 ## Reading the archive
