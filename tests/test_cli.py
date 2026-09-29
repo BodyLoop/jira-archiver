@@ -2,7 +2,7 @@ import pytest
 
 from jira_archiver import cli
 
-ENV_VARS = ["JIRA_URL", "JIRA_TOKEN", "JIRA_PROJECTS", "JIRA_OUT", "JIRA_JQL", "JIRA_CA_BUNDLE",
+ENV_VARS = ["JIRA_URL", "JIRA_TOKEN", "JIRA_PROJECTS", "JIRA_OUT", "JIRA_JQL", "JIRA_TICKETS", "JIRA_CA_BUNDLE",
             "JIRA_INSECURE", "JIRA_FORCE", "JIRA_DEV_STATUS", "JIRA_FETCH_EXTERNAL_IMAGES",
             "JIRA_WORKERS", "JIRA_ENV_FILE"]
 
@@ -31,6 +31,19 @@ def test_cli_beats_env_beats_dotenv(tmp_path, monkeypatch):
     assert opts.url == "https://cli"      # command line
     assert opts.token == "env"            # real env over .env
     assert opts.projects == ["X"]         # command line over JIRA_PROJECTS
+
+
+def test_tickets_to_jql(monkeypatch):
+    monkeypatch.setenv("JIRA_TICKETS", "5, 10-20 100- -3")
+    opts = cli.parse_args(["--url", "https://j", "--token", "t", "P"])
+    assert cli.tickets_jql("P", opts.ticket_ranges) == (
+        'key = "P-5" OR (key >= "P-10" AND key <= "P-20") OR (key >= "P-100") OR (key <= "P-3")')
+
+
+@pytest.mark.parametrize("spec", ["abc", "9-3", "1-2-3"])
+def test_tickets_invalid(spec):
+    with pytest.raises(SystemExit):
+        cli.parse_args(["--url", "https://j", "--token", "t", "--tickets", spec, "P"])
 
 
 def test_explicit_env_file(tmp_path):

@@ -20,14 +20,14 @@ PowerShell:
 
 ```
 $env:JIRA_TOKEN = "<token>"
-uv run jira-archiver PROJ --url https://jira.example.local --jql "key = PROJ-123"
+uv run jira-archiver PROJ --url https://jira.example.local --tickets 123
 ```
 
 bash:
 
 ```
 export JIRA_TOKEN=<token>
-uv run jira-archiver PROJ --url https://jira.example.local --jql "key = PROJ-123"
+uv run jira-archiver PROJ --url https://jira.example.local --tickets 123
 ```
 
 Open `jira-archive/PROJ/PROJ-123/index.md` and check it against Jira before archiving a
@@ -51,6 +51,7 @@ command line, real environment variables, `.env` file, built-in default.
 | `--token` | `JIRA_TOKEN` | Personal Access Token (required). Prefer the variable or `.env` over the option (command lines are visible to other users). |
 | `--out` | `JIRA_OUT` | Output directory, default `jira-archive`. |
 | `--jql` | `JIRA_JQL` | Extra JQL, combined as `project = "X" AND (<jql>)`. |
+| `--tickets` | `JIRA_TICKETS` | Only these ticket numbers (the part after `PROJ-`) in each project: single numbers and ranges, space or comma separated, e.g. `5 10-20 100-` (`100-` = 100 and up, `-20` = up to 20). Combined with `--jql` by AND. |
 | `--ca-bundle` | `JIRA_CA_BUNDLE` | PEM file of your internal CA. |
 | `--insecure` | `JIRA_INSECURE` | Disable TLS verification. Not recommended. |
 | `--force` | `JIRA_FORCE` | Re-archive all tickets, even if unchanged in Jira. |

@@ -65,6 +65,42 @@ def mdpath(p):
     return quote(p, safe="/")
 
 
+def parse_tickets(spec):
+    """Parse a ticket selection like "5, 10-20, 100-" into [(low, high)]; None = open end.
+
+    Numbers are the part after the project key (PROJ-123 -> 123). Raises ValueError.
+    """
+    ranges = []
+    for item in re.split(r"[\s,]+", spec or ""):
+        if not item:
+            continue
+        m = re.fullmatch(r"(\d+)(-(\d*))?|-(\d+)", item)
+        if not m:
+            raise ValueError(f"invalid ticket number or range {item!r} (use e.g. 5, 10-20, 100-, -20)")
+        if m.group(4):
+            low, high = None, int(m.group(4))
+        else:
+            low = int(m.group(1))
+            high = int(m.group(3)) if m.group(3) else (None if m.group(2) else low)
+        if low is not None and high is not None and low > high:
+            raise ValueError(f"invalid range {item!r}: start is greater than end")
+        ranges.append((low, high))
+    return ranges
+
+
+def tickets_jql(project, ranges):
+    """JQL clause selecting the given number ranges of `project` ("" if there are none)."""
+    parts = []
+    for low, high in ranges:
+        if low == high:
+            parts.append(f'key = "{project}-{low}"')
+        else:
+            bounds = ([f'key >= "{project}-{low}"'] if low is not None else []) + \
+                     ([f'key <= "{project}-{high}"'] if high is not None else [])
+            parts.append("(" + " AND ".join(bounds) + ")")
+    return " OR ".join(parts)
+
+
 def download_plain(url, dest, timeout=60):
     """Download without the Jira session, so the token never leaves the Jira host."""
     with requests.get(url, stream=True, timeout=timeout) as r:

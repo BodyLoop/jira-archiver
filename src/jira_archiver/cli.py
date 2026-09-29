@@ -18,7 +18,7 @@ from dotenv import find_dotenv, load_dotenv
 from . import __version__
 from .archiver import Archiver
 from .client import JiraClient
-from .util import cell, fmt, log
+from .util import cell, fmt, log, parse_tickets, tickets_jql
 
 TRUE_VALUES = {"1", "true", "yes", "on"}
 FALSE_VALUES = {"", "0", "false", "no", "off"}
@@ -80,6 +80,9 @@ def build_parser():
                     help="output directory (env: JIRA_OUT; default: jira-archive)")
     ap.add_argument("--jql", default=os.environ.get("JIRA_JQL") or None,
                     help="extra JQL filter, e.g. \"key = PROJ-123\" for a test run (env: JIRA_JQL)")
+    ap.add_argument("--tickets", default=os.environ.get("JIRA_TICKETS") or None,
+                    help="only these ticket numbers/ranges of each project, e.g. \"5 10-20 100-\" "
+                         "(env: JIRA_TICKETS)")
     ap.add_argument("--ca-bundle", default=os.environ.get("JIRA_CA_BUNDLE") or None,
                     help="CA bundle for an internal certificate authority (env: JIRA_CA_BUNDLE)")
     ap.add_argument("--insecure", action="store_true", default=env_flag("JIRA_INSECURE"),
@@ -111,6 +114,10 @@ def parse_args(argv=None):
         ap.error("no token given (use --token or set JIRA_TOKEN)")
     if opts.workers < 1:
         ap.error("--workers / JIRA_WORKERS must be at least 1")
+    try:
+        opts.ticket_ranges = parse_tickets(opts.tickets)
+    except ValueError as e:
+        ap.error(f"--tickets / JIRA_TICKETS: {e}")
     return opts
 
 
@@ -156,7 +163,12 @@ def main(argv=None):
                 "versions": client.get(f"/rest/api/2/project/{project}/versions")}
         (pdir / "project.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), "utf-8")
 
-        jql = f'project = "{project}"' + (f" AND ({opts.jql})" if opts.jql else "") + " ORDER BY key ASC"
+        jql = f'project = "{project}"'
+        if opts.ticket_ranges:
+            jql += f" AND ({tickets_jql(project, opts.ticket_ranges)})"
+        if opts.jql:
+            jql += f" AND ({opts.jql})"
+        jql += " ORDER BY key ASC"
         found = [(it["key"], (it.get("fields") or {}).get("updated"))
                  for it in client.paged("/rest/api/2/search", "issues", jql=jql, fields="key,updated")]
         keys = [k for k, _ in found]
