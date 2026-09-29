@@ -8,6 +8,8 @@ import json
 import os
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
+from itertools import repeat
 from pathlib import Path
 
 import urllib3
@@ -30,6 +32,17 @@ def env_flag(name):
     if value in FALSE_VALUES:
         return False
     raise SystemExit(f"error: {name}={os.environ[name]!r} is not a boolean (use true/false)")
+
+
+def env_int(name, default):
+    """Integer from environment variable `name`; unset or empty means `default`."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        raise SystemExit(f"error: {name}={os.environ[name]!r} is not an integer") from None
 
 
 def env_list(name):
@@ -78,6 +91,8 @@ def build_parser():
     ap.add_argument("--fetch-external-images", action="store_true",
                     default=env_flag("JIRA_FETCH_EXTERNAL_IMAGES"),
                     help="also download inline images hosted outside Jira (env: JIRA_FETCH_EXTERNAL_IMAGES)")
+    ap.add_argument("--workers", type=int, default=env_int("JIRA_WORKERS", 4),
+                    help="tickets to archive in parallel (env: JIRA_WORKERS; default: 4)")
     return ap
 
 
@@ -94,6 +109,8 @@ def parse_args(argv=None):
         ap.error("no Jira URL given (use --url or set JIRA_URL)")
     if not opts.token:
         ap.error("no token given (use --token or set JIRA_TOKEN)")
+    if opts.workers < 1:
+        ap.error("--workers / JIRA_WORKERS must be at least 1")
     return opts
 
 
@@ -124,20 +141,24 @@ def main(argv=None):
         keys = [it["key"] for it in client.paged("/rest/api/2/search", "issues", jql=jql, fields="key")]
         log(f"{project}: {len(keys)} tickets")
 
-        rows = []
-        for i, key in enumerate(keys, 1):
+        def process(pdir, progress, key):
             existing = pdir / key / "issue.json"
             if existing.exists() and not opts.force:
                 f = json.loads(existing.read_text("utf-8"))["issue"]["fields"]
-                rows.append({"key": key, "summary": f.get("summary", ""),
-                             "type": fmt(f.get("issuetype")), "status": fmt(f.get("status"))})
-                continue
-            log(f"  [{i}/{len(keys)}] {key}")
+                return {"key": key, "summary": f.get("summary", ""),
+                        "type": fmt(f.get("issuetype")), "status": fmt(f.get("status"))}
+            log(f"  [{progress}] {key}")
             try:
-                rows.append(arch.archive(key, pdir))
+                return arch.archive(key, pdir)
             except Exception as e:
                 log(f"  ! {key} failed: {e}")
                 failures.append(key)
+                return None
+
+        with ThreadPoolExecutor(max_workers=opts.workers) as pool:
+            progress = [f"{i}/{len(keys)}" for i in range(1, len(keys) + 1)]
+            results = pool.map(process, repeat(pdir), progress, keys)  # keeps ticket order
+            rows = [r for r in results if r]
 
         L = [f"# {meta['project'].get('name', project)} ({project})", "",
              f"Archived from <{client.base}/browse/{project}>", "",

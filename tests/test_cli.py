@@ -4,7 +4,7 @@ from jira_archiver import cli
 
 ENV_VARS = ["JIRA_URL", "JIRA_TOKEN", "JIRA_PROJECTS", "JIRA_OUT", "JIRA_JQL", "JIRA_CA_BUNDLE",
             "JIRA_INSECURE", "JIRA_FORCE", "JIRA_DEV_STATUS", "JIRA_FETCH_EXTERNAL_IMAGES",
-            "JIRA_ENV_FILE"]
+            "JIRA_WORKERS", "JIRA_ENV_FILE"]
 
 
 @pytest.fixture(autouse=True)
@@ -37,6 +37,19 @@ def test_explicit_env_file(tmp_path):
     f = tmp_path / "other.env"
     f.write_text("JIRA_URL=https://o\nJIRA_TOKEN=t\nJIRA_PROJECTS=P\n", "utf-8")
     assert cli.parse_args(["--env-file", str(f)]).url == "https://o"
+
+
+def test_workers_default_env_and_validation(monkeypatch):
+    base = ["--url", "u", "--token", "t", "P"]
+    assert cli.parse_args(base).workers == 4
+    monkeypatch.setenv("JIRA_WORKERS", "8")
+    assert cli.parse_args(base).workers == 8
+    assert cli.parse_args(base + ["--workers", "2"]).workers == 2
+    with pytest.raises(SystemExit):
+        cli.parse_args(base + ["--workers", "0"])
+    monkeypatch.setenv("JIRA_WORKERS", "many")
+    with pytest.raises(SystemExit):
+        cli.parse_args(base)
 
 
 def test_missing_env_file_is_an_error():

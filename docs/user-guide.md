@@ -56,6 +56,7 @@ command line, real environment variables, `.env` file, built-in default.
 | `--force` | `JIRA_FORCE` | Re-archive tickets that already exist. |
 | `--dev-status` | `JIRA_DEV_STATUS` | Also store linked Bitbucket repositories, branches and pull requests. |
 | `--fetch-external-images` | `JIRA_FETCH_EXTERNAL_IMAGES` | Download inline images hosted outside Jira (without sending the token). |
+| `--workers` | `JIRA_WORKERS` | Number of tickets archived in parallel (threads), default 4. Use 1 for sequential runs; lower it if Jira throttles (HTTP 429). |
 | `--env-file` | `JIRA_ENV_FILE` | Read settings from this file instead of the `.env` found in the working directory (or a parent). |
 | `--version` | | Print the version. |
 

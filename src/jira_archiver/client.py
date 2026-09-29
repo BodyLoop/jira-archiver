@@ -1,4 +1,6 @@
 """Minimal Jira Server / Data Center REST client (Bearer PAT auth, retries)."""
+import threading
+
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -8,14 +10,24 @@ class JiraClient:
     def __init__(self, base_url, token, verify=True, timeout=60):
         self.base = base_url.rstrip("/")
         self.timeout = timeout
-        self.s = requests.Session()
-        self.s.headers.update({"Authorization": f"Bearer {token}", "Accept": "application/json"})
-        self.s.verify = verify
-        retry = Retry(total=6, backoff_factor=1.5, status_forcelist=(429, 500, 502, 503, 504),
-                      allowed_methods=frozenset(["GET"]), respect_retry_after_header=True)
-        adapter = HTTPAdapter(max_retries=retry)
-        self.s.mount("https://", adapter)
-        self.s.mount("http://", adapter)
+        self._token = token
+        self._verify = verify
+        self._local = threading.local()
+
+    @property
+    def s(self):
+        """Session of the calling thread (requests.Session is not documented as thread-safe)."""
+        s = getattr(self._local, "session", None)
+        if s is None:
+            s = self._local.session = requests.Session()
+            s.headers.update({"Authorization": f"Bearer {self._token}", "Accept": "application/json"})
+            s.verify = self._verify
+            retry = Retry(total=6, backoff_factor=1.5, status_forcelist=(429, 500, 502, 503, 504),
+                          allowed_methods=frozenset(["GET"]), respect_retry_after_header=True)
+            adapter = HTTPAdapter(max_retries=retry)
+            s.mount("https://", adapter)
+            s.mount("http://", adapter)
+        return s
 
     def url(self, path):
         return path if path.startswith("http") else f"{self.base}{path}"
