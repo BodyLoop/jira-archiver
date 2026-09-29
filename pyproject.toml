@@ -1,9 +1,11 @@
 [project]
 name = "jira-archiver"
-# Chronver: YYYY.MM.DD (add .N for a second release on the same day). See CLAUDE.md.
-version = "2026.09.29"
+# YYYY.MM.DD.N (N = release counter across all days, never resets). See CLAUDE.md.
+version = "2026.09.29.1"
 description = "Archive Jira Server / Data Center projects as a folder-per-ticket Markdown tree."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = [
     "requests>=2.31",

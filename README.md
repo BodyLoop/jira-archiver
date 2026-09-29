@@ -64,5 +64,5 @@ uv run pytest
 uv run ruff check
 ```
 
-Versioning follows [Chronver](https://chronver.org): `YYYY.MM.DD`, with `.N` for further releases
-on the same day. Run `uv run python scripts/bump_version.py` to bump.
+Versions are `YYYY.MM.DD.N`: the release date plus `N`, a release counter across all days that
+never resets (a [Chronver](https://chronver.org) variant). Run `uv run python scripts/bump_version.py` to bump.
