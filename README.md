@@ -46,6 +46,10 @@ With a filled-in `.env`, just run `uv run jira-archiver`.
 Options: `--out`, `--jql`, `--tickets` (e.g. `5 10-20 100-`), `--ca-bundle`, `--insecure`, `--force`, `--dev-status`,
 `--fetch-external-images`. Re-runs are incremental: tickets whose `updated` timestamp is unchanged are skipped; changed and failed ones are fetched again (`--force` refreshes everything).
 
+## Dashboard
+
+`uv run jira-archiver-dashboard` opens a local, read-only dashboard (filters, charts, ticket details) over the archive; see the [user guide](docs/user-guide.md#dashboard).
+
 ## Notes
 
 - `issue.json` is the lossless record; `index.md` is a readable rendering of it.

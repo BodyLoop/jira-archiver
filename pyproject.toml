@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 jira-archiver = "jira_archiver.cli:main"
+jira-archiver-dashboard = "jira_archiver.dashboard:main"
 
 [dependency-groups]
 dev = [

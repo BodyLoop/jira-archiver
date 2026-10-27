@@ -228,7 +228,7 @@ wheels = [
 
 [[package]]
 name = "jira-archiver"
-version = "2026.9.29"
+version = "2026.9.29.1"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },

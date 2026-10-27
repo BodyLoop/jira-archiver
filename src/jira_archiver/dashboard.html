@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jira archive dashboard</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.10); --wash: rgba(11,11,11,.05);
+  --s1: #2a78d6; --s2: #eb6834; --seq-hi: #184f95; --good: #006300; --crit: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10); --wash: rgba(255,255,255,.06);
+    --s1: #3987e5; --s2: #d95926; --seq-hi: #86b6ef; --good: #0ca30c;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10); --wash: rgba(255,255,255,.06);
+  --s1: #3987e5; --s2: #d95926; --seq-hi: #86b6ef; --good: #0ca30c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; flex-wrap: wrap; }
+h1 { font-size: 18px; margin: 0; flex: 1; font-weight: 600; }
+h2 { font-size: 13px; margin: 0 0 10px; font-weight: 600; color: var(--ink2); }
+main { padding: 0 16px 32px; max-width: 1500px; margin: 0 auto; }
+button, select, input { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 5px 8px; }
+button { cursor: pointer; }
+button:hover { background: var(--wash); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+.filters input[type=search] { min-width: 220px; flex: 1; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.chip { background: var(--wash); border-radius: 12px; padding: 2px 4px 2px 10px; font-size: 12px; }
+.chip button { border: 0; background: none; padding: 0 6px; color: var(--ink2); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-width: 0; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.kpi .v { font-size: 28px; font-weight: 600; line-height: 1.1; }
+.kpi .l { color: var(--ink2); font-size: 12px; margin-top: 4px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.wide { grid-column: 1 / -1; }
+.bars { display: grid; grid-template-columns: minmax(70px, 38%) 1fr auto; gap: 4px 8px; align-items: center; font-size: 13px; }
+.bars .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink2); cursor: pointer; }
+.bars .name:hover { color: var(--ink); text-decoration: underline; }
+.bars .track { height: 12px; }
+.bars .fill { height: 12px; background: var(--s1); border-radius: 0 4px 4px 0; min-width: 2px; cursor: pointer; }
+.bars .fill.on { background: var(--seq-hi); outline: 2px solid var(--seq-hi); outline-offset: 1px; }
+.bars .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink2); margin-bottom: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+svg text { fill: var(--muted); font-size: 11px; }
+svg .gl { stroke: var(--grid); }
+.tip { position: fixed; pointer-events: none; background: var(--surface); border: 1px solid var(--axis); border-radius: 6px;
+  padding: 6px 9px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.18); display: none; z-index: 20; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-weight: 600; color: var(--ink2); padding: 6px 8px; border-bottom: 1px solid var(--axis); cursor: pointer; white-space: nowrap; user-select: none; position: sticky; top: 0; background: var(--surface); }
+td { padding: 5px 8px; border-bottom: 1px solid var(--grid); }
+tr.row { cursor: pointer; }
+tr.row:hover td { background: var(--wash); }
+td.num, td.date { font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.key { white-space: nowrap; font-weight: 600; }
+.tablewrap { overflow-x: auto; max-height: 70vh; overflow-y: auto; }
+.muted { color: var(--muted); }
+.pill { display: inline-block; padding: 0 7px; border-radius: 10px; font-size: 12px; background: var(--wash); white-space: nowrap; }
+.pill.done::before { content: "✓ "; color: var(--good); }
+.pill.new::before { content: "○ "; }
+.pill.indeterminate::before { content: "◐ "; }
+aside { position: fixed; top: 0; right: 0; bottom: 0; width: min(720px, 100vw); background: var(--surface); border-left: 1px solid var(--axis);
+  box-shadow: -4px 0 16px rgba(0,0,0,.2); overflow: auto; padding: 16px; display: none; z-index: 10; }
+aside.open { display: block; }
+aside h3 { font-size: 16px; margin: 0 0 8px; }
+aside h4 { margin: 16px 0 6px; font-size: 13px; color: var(--ink2); }
+aside pre { white-space: pre-wrap; word-break: break-word; font: 13px/1.5 system-ui, sans-serif; margin: 0; background: var(--wash); padding: 8px; border-radius: 6px; }
+aside a { color: var(--s1); cursor: pointer; text-decoration: none; }
+aside a:hover { text-decoration: underline; }
+.meta { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; font-size: 13px; }
+.meta dt { color: var(--ink2); } .meta dd { margin: 0; }
+.cm { border-top: 1px solid var(--grid); padding: 8px 0; }
+.cm b { font-weight: 600; }
+.empty { color: var(--muted); padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Jira archive dashboard <span class="muted" id="count"></span></h1>
+  <button id="reload" title="Re-read the archive directory (e.g. after a new jira-archiver run)">Reload archive</button>
+  <button id="theme" title="Toggle light / dark">Theme</button>
+</header>
+<main>
+  <div class="filters" id="filters"></div>
+  <div class="chips" id="chips"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card wide">
+      <h2>Created vs. resolved per month</h2>
+      <div class="legend"><span><i style="background:var(--s1)"></i>Created</span><span><i style="background:var(--s2)"></i>Resolved</span></div>
+      <div id="timeline"></div>
+    </div>
+    <div class="card"><h2>Status</h2><div class="bars" id="c-status"></div></div>
+    <div class="card"><h2>Issue type</h2><div class="bars" id="c-type"></div></div>
+    <div class="card"><h2>Priority</h2><div class="bars" id="c-priority"></div></div>
+    <div class="card"><h2>Assignee (top 12)</h2><div class="bars" id="c-assignee"></div></div>
+    <div class="card"><h2>Component (top 12)</h2><div class="bars" id="c-component"></div></div>
+    <div class="card"><h2>Fix version (top 12)</h2><div class="bars" id="c-version"></div></div>
+  </div>
+  <div class="card">
+    <h2 id="tabletitle">Issues</h2>
+    <div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+    <p><button id="more" hidden>Show more</button></p>
+  </div>
+</main>
+<div class="tip" id="tip"></div>
+<aside id="drawer"></aside>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const DAY = 864e5;
+
+let all = [], base = "";
+// Filter state. Each dimension holds one selected value ("" = any); `q` is free text.
+const state = {q: "", project: "", status: "", type: "", priority: "", assignee: "", component: "", version: "", label: "",
+               state: "", range: "", sort: "key", dir: 1, shown: 100};
+const DIMS = [  // [state key, label, getter returning an array of values]
+  ["project", "Project", (r) => [r.project]], ["status", "Status", (r) => [r.status]],
+  ["type", "Type", (r) => [r.type]], ["priority", "Priority", (r) => [r.priority || "(none)"]],
+  ["assignee", "Assignee", (r) => [r.assignee || "(unassigned)"]], ["component", "Component", (r) => r.components],
+  ["version", "Fix version", (r) => r.versions], ["label", "Label", (r) => r.labels]];
+const COLS = [["key", "Key"], ["summary", "Summary"], ["type", "Type"], ["status", "Status"], ["priority", "Priority"],
+              ["assignee", "Assignee"], ["created", "Created"], ["updated", "Updated"], ["comments", "💬"]];
+
+const ts = (s) => (s ? Date.parse(s.replace(/([+-]\d\d)(\d\d)$/, "$1:$2")) : NaN);
+const day = (s) => (s || "").slice(0, 10);
+const num = (k) => +k.slice(k.lastIndexOf("-") + 1);
+
+function visible(skip) {
+  const q = state.q.trim().toLowerCase();
+  const since = state.range ? Date.now() - state.range * DAY : 0;
+  return all.filter((r) => {
+    if (q && !(r.key + " " + r.summary + " " + r.assignee + " " + r.labels.join(" ")).toLowerCase().includes(q)) return false;
+    for (const [k, , get] of DIMS) if (k !== skip && state[k] && !get(r).includes(state[k])) return false;
+    if (state.state && r.category !== state.state) return false;
+    if (since && !(ts(r.created) >= since)) return false;
+    return true;
+  });
+}
+
+function counts(rows, get, limit) {
+  const m = new Map();
+  for (const r of rows) for (const v of get(r)) if (v) m.set(v, (m.get(v) || 0) + 1);
+  const list = [...m].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return limit ? list.slice(0, limit) : list;
+}
+
+function renderFilters() {
+  const f = $("filters");
+  if (!f.firstChild) {
+    f.innerHTML = '<input type="search" id="q" placeholder="Search key, summary, assignee, label…">' +
+      DIMS.map(([k, l]) => `<select id="f-${k}"></select>`).join("") +
+      '<select id="f-state"><option value="">Any state</option><option value="new">To do</option>' +
+      '<option value="indeterminate">In progress</option><option value="done">Done</option></select>' +
+      '<select id="f-range"><option value="">Created: any time</option><option value="30">last 30 days</option>' +
+      '<option value="90">last 90 days</option><option value="365">last year</option></select>' +
+      '<button id="clear">Clear</button>';
+    $("q").oninput = (e) => { state.q = e.target.value; state.shown = 100; render(false); };
+    for (const [k] of DIMS) $("f-" + k).onchange = (e) => set(k, e.target.value);
+    $("f-state").onchange = (e) => set("state", e.target.value);
+    $("f-range").onchange = (e) => set("range", e.target.value);
+    $("clear").onclick = () => { for (const k of ["q", "state", "range", ...DIMS.map((d) => d[0])]) state[k] = ""; $("q").value = ""; render(); };
+  }
+  // Options of each dropdown come from the rows that match all *other* filters, so you never pick an empty combination.
+  for (const [k, l, get] of DIMS) {
+    const sel = $("f-" + k), opts = counts(visible(k), get);
+    if (state[k] && !opts.some((o) => o[0] === state[k])) opts.unshift([state[k], 0]);
+    sel.innerHTML = `<option value="">${esc(l)}: all</option>` +
+      opts.map(([v, n]) => `<option value="${esc(v)}"${v === state[k] ? " selected" : ""}>${esc(v)} (${n})</option>`).join("");
+  }
+  $("f-state").value = state.state; $("f-range").value = state.range;
+}
+
+function set(k, v) { state[k] = state[k] === v ? "" : v; state.shown = 100; render(); }
+
+function renderChips() {
+  const active = DIMS.filter(([k]) => state[k]).map(([k, l]) => [k, `${l}: ${state[k]}`]);
+  $("chips").innerHTML = active.map(([k, t]) => `<span class="chip">${esc(t)}<button data-k="${k}" aria-label="remove">✕</button></span>`).join("");
+  for (const b of $("chips").querySelectorAll("button")) b.onclick = () => set(b.dataset.k, state[b.dataset.k]);
+}
+
+function renderKpis(rows) {
+  const open = rows.filter((r) => r.category !== "done");
+  const durs = rows.filter((r) => r.resolved).map((r) => (ts(r.resolved) - ts(r.created)) / DAY).filter((d) => d >= 0).sort((a, b) => a - b);
+  const med = durs.length ? durs[durs.length >> 1] : null;
+  const recent = rows.filter((r) => ts(r.created) >= Date.now() - 30 * DAY).length;
+  const kpi = (v, l) => `<div class="card kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+  $("kpis").innerHTML = kpi(rows.length, "issues") + kpi(open.length, "open") + kpi(rows.length - open.length, "done") +
+    kpi(open.filter((r) => !r.assignee).length, "open &amp; unassigned") + kpi(recent, "created in last 30 days") +
+    kpi(med === null ? "–" : Math.round(med) + " d", "median time to resolve");
+}
+
+function renderBars(id, key, rows, limit) {
+  const get = DIMS.find((d) => d[0] === key)[2];
+  const data = counts(rows, get, limit), max = data.length ? data[0][1] : 1;
+  const el = $(id);
+  if (!data.length) { el.innerHTML = '<div class="empty" style="grid-column:1/-1">no data</div>'; return; }
+  el.innerHTML = data.map(([v, n]) => `<div class="name" data-k="${key}" data-v="${esc(v)}" title="${esc(v)}">${esc(v)}</div>` +
+    `<div class="track"><div class="fill${state[key] === v ? " on" : ""}" data-k="${key}" data-v="${esc(v)}" style="width:${(100 * n / max).toFixed(1)}%"></div></div>` +
+    `<div class="n">${n}</div>`).join("");
+  for (const e of el.querySelectorAll("[data-k]")) e.onclick = () => set(e.dataset.k, e.dataset.v);
+}
+
+function months(rows) {
+  const m = new Map(), bump = (s, f) => { const k = day(s).slice(0, 7); if (k) { if (!m.has(k)) m.set(k, {c: 0, r: 0}); m.get(k)[f]++; } };
+  for (const r of rows) { bump(r.created, "c"); bump(r.resolved, "r"); }
+  if (!m.size) return [];
+  const keys = [...m.keys()].sort(), out = [];
+  let [y, mo] = keys[0].split("-").map(Number); const [ey, em] = keys.at(-1).split("-").map(Number);
+  while (y < ey || (y === ey && mo <= em)) {
+    const k = `${y}-${String(mo).padStart(2, "0")}`;
+    out.push({k, ...(m.get(k) || {c: 0, r: 0})});
+    if (++mo > 12) { mo = 1; y++; }
+  }
+  return out;
+}
+
+function renderTimeline(rows) {
+  const d = months(rows), el = $("timeline");
+  if (!d.length) { el.innerHTML = '<div class="empty">no data</div>'; return; }
+  const W = Math.max(640, d.length * 22), H = 220, L = 34, B = 24, T = 8, R = 6;
+  const max = Math.max(1, ...d.map((x) => Math.max(x.c, x.r)));
+  const nice = (v) => { const p = 10 ** Math.floor(Math.log10(v)); return [1, 2, 5, 10].map((s) => s * p).find((s) => s >= v); };
+  const top = nice(max), ph = H - T - B, step = (W - L - R) / d.length, bw = Math.max(2, Math.min(14, step / 2 - 2));
+  const y = (v) => T + ph - (v / top) * ph;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-height:${H * 1.4}px">`;
+  for (let i = 0; i <= 4; i++) {
+    const v = top * i / 4;
+    s += `<line class="gl" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  }
+  const every = Math.ceil(d.length / Math.floor((W - L) / 56));
+  d.forEach((x, i) => {
+    const cx = L + step * (i + .5);
+    if (x.c) s += `<rect x="${cx - bw - 1}" y="${y(x.c)}" width="${bw}" height="${y(0) - y(x.c)}" rx="2" fill="var(--s1)"/>`;
+    if (x.r) s += `<rect x="${cx + 1}" y="${y(x.r)}" width="${bw}" height="${y(0) - y(x.r)}" rx="2" fill="var(--s2)"/>`;
+    if (i % every === 0) s += `<text x="${cx}" y="${H - 8}" text-anchor="middle">${x.k}</text>`;
+    s += `<rect class="hit" data-i="${i}" x="${L + step * i}" y="${T}" width="${step}" height="${ph}" fill="transparent"/>`;
+  });
+  s += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--axis)"/></svg>`;
+  el.innerHTML = s;
+  for (const h of el.querySelectorAll(".hit")) {
+    h.onmousemove = (e) => tip(e, `<b>${d[h.dataset.i].k}</b><br>Created ${d[h.dataset.i].c}<br>Resolved ${d[h.dataset.i].r}`);
+    h.onmouseleave = () => ($("tip").style.display = "none");
+  }
+}
+
+function tip(e, html) {
+  const t = $("tip");
+  t.innerHTML = html; t.style.display = "block";
+  t.style.left = Math.min(e.clientX + 12, innerWidth - t.offsetWidth - 8) + "px";
+  t.style.top = e.clientY + 14 + "px";
+}
+
+function renderTable(rows) {
+  const dir = state.dir, k = state.sort;
+  const val = (r) => (k === "key" ? [r.project, num(r.key)] : k === "comments" ? r.comments : (r[k] || "").toString().toLowerCase());
+  const sorted = [...rows].sort((a, b) => {
+    const x = val(a), y = val(b);
+    if (Array.isArray(x)) return (x[0].localeCompare(y[0]) || x[1] - y[1]) * dir;
+    return (x < y ? -1 : x > y ? 1 : 0) * dir;
+  });
+  $("thead").innerHTML = "<tr>" + COLS.map(([c, l]) => `<th data-c="${c}">${l}${state.sort === c ? (dir > 0 ? " ▲" : " ▼") : ""}</th>`).join("") + "</tr>";
+  for (const th of $("thead").querySelectorAll("th")) th.onclick = () => {
+    state.dir = state.sort === th.dataset.c ? -state.dir : 1; state.sort = th.dataset.c; render(false);
+  };
+  const part = sorted.slice(0, state.shown);
+  $("tabletitle").textContent = `Issues (${rows.length})`;
+  $("tbody").innerHTML = part.map((r) =>
+    `<tr class="row" data-key="${esc(r.key)}"><td class="key">${esc(r.key)}</td><td>${esc(r.summary)}</td><td>${esc(r.type)}</td>` +
+    `<td><span class="pill ${esc(r.category)}">${esc(r.status)}</span></td><td>${esc(r.priority)}</td><td>${esc(r.assignee)}</td>` +
+    `<td class="date">${day(r.created)}</td><td class="date">${day(r.updated)}</td><td class="num">${r.comments || ""}</td></tr>`).join("") ||
+    '<tr><td colspan="9" class="empty">No issues match the filters.</td></tr>';
+  for (const tr of $("tbody").querySelectorAll("tr.row")) tr.onclick = () => openIssue(tr.dataset.key);
+  $("more").hidden = rows.length <= state.shown;
+  $("more").textContent = `Show more (${rows.length - state.shown} left)`;
+}
+
+function render(withFilters = true) {
+  const rows = visible();
+  if (withFilters) renderFilters();
+  renderChips(); renderKpis(rows); renderTimeline(rows);
+  renderBars("c-status", "status", rows); renderBars("c-type", "type", rows); renderBars("c-priority", "priority", rows);
+  renderBars("c-assignee", "assignee", rows, 12); renderBars("c-component", "component", rows, 12); renderBars("c-version", "version", rows, 12);
+  renderTable(rows);
+  $("count").textContent = `· ${rows.length} of ${all.length} issues`;
+}
+
+async function openIssue(key) {
+  const d = $("drawer");
+  d.classList.add("open"); d.innerHTML = '<p class="muted">Loading…</p>';
+  history.replaceState(null, "", "#" + key);
+  let x;
+  try { x = await (await fetch("/api/issue/" + encodeURIComponent(key))).json(); } catch { x = {error: 1}; }
+  if (x.error) { d.innerHTML = `<button id="x">Close</button><p>${esc(key)} is not in the archive.</p>`; $("x").onclick = closeIssue; return; }
+  const r = x.row, link = (k, s) => `<a data-key="${esc(k)}">${esc(k)}</a> ${esc(s || "")}`;
+  const meta = [["Type", r.type], ["Status", r.status], ["Resolution", r.resolution], ["Priority", r.priority], ["Assignee", r.assignee],
+    ["Reporter", r.reporter], ["Created", day(r.created)], ["Updated", day(r.updated)], ["Resolved", day(r.resolved)],
+    ["Components", r.components.join(", ")], ["Labels", r.labels.join(", ")], ["Fix versions", r.versions.join(", ")]]
+    .filter((m) => m[1]).map((m) => `<dt>${m[0]}</dt><dd>${esc(m[1])}</dd>`).join("");
+  const sec = (t, body) => (body ? `<h4>${t}</h4>${body}` : "");
+  d.innerHTML = `<p><button id="x">Close</button> <a href="/files/${esc(r.project)}/${esc(r.key)}/index.md" target="_blank">archived index.md</a>` +
+    (base ? ` · <a href="${esc(base)}/browse/${esc(r.key)}" target="_blank" rel="noopener">open in Jira</a>` : "") + "</p>" +
+    `<h3>${esc(r.key)}: ${esc(r.summary)}</h3><dl class="meta">${meta}</dl>` +
+    (r.parent ? sec("Parent", `<div>${link(r.parent)}</div>`) : "") +
+    sec("Description", x.description ? `<pre>${esc(x.description)}</pre>` : "") +
+    sec("Sub-tasks", x.subtasks.map((s) => `<div>${link(s.key, s.summary)} <span class="pill">${esc(s.status)}</span></div>`).join("")) +
+    sec("Linked issues", x.links.map((l) => `<div>${esc(l.relation)} ${link(l.key, l.summary)}</div>`).join("")) +
+    sec(`Attachments (${x.attachments.length})`, x.attachments.map((a) => `<div>${esc(a)}</div>`).join("")) +
+    sec(`Comments (${x.comments.length})`, x.comments.map((c) => `<div class="cm"><b>${esc(c.author)}</b> <span class="muted">${day(c.created)}</span><pre>${esc(c.body)}</pre></div>`).join("")) +
+    sec(`History (${x.history.length})`, x.history.map((h) => `<div class="cm"><span class="muted">${day(h.date)}</span> <b>${esc(h.author)}</b>` +
+      h.items.map((i) => `<div>${esc(i.field)}: ${esc(i.from) || "∅"} → ${esc(i.to) || "∅"}</div>`).join("") + "</div>").join(""));
+  $("x").onclick = closeIssue;
+  for (const a of d.querySelectorAll("a[data-key]")) a.onclick = () => openIssue(a.dataset.key);
+  d.scrollTop = 0;
+}
+function closeIssue() { $("drawer").classList.remove("open"); history.replaceState(null, "", location.pathname); }
+addEventListener("keydown", (e) => { if (e.key === "Escape") closeIssue(); });
+
+async function load() {
+  const res = await (await fetch("/api/issues")).json();
+  all = res.issues; base = res.base;
+  render();
+}
+$("more").onclick = () => { state.shown += 200; render(false); };
+$("reload").onclick = async () => { $("reload").disabled = true; await fetch("/api/reload", {method: "POST"}); await load(); $("reload").disabled = false; };
+$("theme").onclick = () => {
+  const dark = (document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+};
+load().then(() => { if (location.hash.length > 1) openIssue(decodeURIComponent(location.hash.slice(1))); });
+</script>
+</body>
+</html>

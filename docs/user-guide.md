@@ -109,6 +109,28 @@ variables override values in the file, so `JIRA_TOKEN` set by a CI system wins.
   shown in links). Use `--force` for a full refresh, optionally narrowed with `--jql`.
 - Ticket listings (`<PROJ>/index.md`) are always regenerated.
 
+## Dashboard
+
+A local, read-only dashboard over the archive (no network, no token):
+
+```
+uv run jira-archiver-dashboard            # serves http://127.0.0.1:8765/ and opens the browser
+uv run jira-archiver-dashboard --out jira-archive --port 9000 --no-browser
+```
+
+It shows KPIs, created-vs-resolved per month, and breakdowns by status, type, priority, assignee,
+component and fix version, plus a sortable ticket table. Everything is filterable: use the
+dropdowns, the search box, or click a bar to filter by it. Click a ticket for its description,
+comments, links and history; `#PROJ-123` in the URL opens a ticket directly. **Reload archive**
+re-reads the directory after a new `jira-archiver` run. The server listens on 127.0.0.1 only.
+
+| Option | Environment variable | Meaning |
+|---|---|---|
+| `--out` | `JIRA_OUT` | Archive directory, default `jira-archive`. |
+| `--port` | `JIRA_DASHBOARD_PORT` | Port, default 8765. |
+| `--no-browser` | | Do not open the browser. |
+| `--env-file` | `JIRA_ENV_FILE` | As for the archiver. |
+
 ## Reading the archive
 
 Start at `<out>/<PROJ>/index.md`. Each ticket's `index.md` is the readable view;

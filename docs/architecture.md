@@ -8,6 +8,7 @@
 | `client.py` | `JiraClient`: requests session with Bearer auth, retry adapter, `get`, `get_optional`, `paged`, `download`. |
 | `archiver.py` | `Archiver`: collects all data of a ticket, converts HTML to Markdown with local resources, writes the ticket folder atomically. |
 | `util.py` | Pure helpers: `safe_name`, `unique`, `fmt`, `fmt_dt`, `cell`, `mdpath`, `download_plain`, `log`. |
+| `dashboard.py` + `dashboard.html` | `jira-archiver-dashboard`: stdlib HTTP server (127.0.0.1) indexing the `issue.json` files into memory; JSON API (`/api/issues`, `/api/issue/KEY`, `/api/reload`), read-only `/files/` from the archive; the single-file vanilla-JS UI does all filtering and charting client-side. |
 | `__main__.py` | `python -m jira_archiver`. |
 
 ## Data flow
