@@ -36,6 +36,14 @@ button { cursor: pointer; }
 button:hover { background: var(--wash); }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
 .filters input[type=search] { min-width: 220px; flex: 1; }
+details.ms { position: relative; }
+details.ms summary { cursor: pointer; background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 5px 8px;
+  max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; list-style: none; }
+details.ms summary::after { content: " ▾"; color: var(--muted); }
+details.ms .menu { position: absolute; top: 100%; left: 0; margin-top: 2px; z-index: 15; min-width: 100%; max-height: 320px; overflow: auto;
+  background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+details.ms label { display: block; padding: 2px 8px; white-space: nowrap; cursor: pointer; border-radius: 4px; }
+details.ms label:hover { background: var(--wash); }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
 .chip { background: var(--wash); border-radius: 12px; padding: 2px 4px 2px 10px; font-size: 12px; }
 .chip button { border: 0; background: none; padding: 0 6px; color: var(--ink2); }
@@ -126,10 +134,15 @@ const DAY = 864e5;
 
 let all = [], base = "";
 // Filter state. Each dimension holds one selected value ("" = any); `q` is free text.
-const state = {q: "", project: "", status: "", type: "", priority: "", assignee: "", component: "", version: "", label: "",
-               state: "", range: "", sort: "key", dir: 1, shown: 100};
+// Multi-pick dimensions ("status", "state") hold an array of selected values, a ticket matches if it has any of them.
+const MULTI = new Set(["status", "state"]);
+const STATES = {new: "To do", indeterminate: "In progress", done: "Done"};
+const state = {q: "", project: "", status: [], type: "", priority: "", assignee: "", component: "", version: "", label: "",
+               state: [], range: "", sort: "key", dir: 1, shown: 100};
+const isOn = (k, v) => (MULTI.has(k) ? state[k].includes(v) : state[k] === v);
 const DIMS = [  // [state key, label, getter returning an array of values]
   ["project", "Project", (r) => [r.project]], ["status", "Status", (r) => [r.status]],
+  ["state", "State", (r) => [STATES[r.category] || "Other"]],
   ["type", "Type", (r) => [r.type]], ["priority", "Priority", (r) => [r.priority || "(none)"]],
   ["assignee", "Assignee", (r) => [r.assignee || "(unassigned)"]], ["component", "Component", (r) => r.components],
   ["version", "Fix version", (r) => r.versions], ["label", "Label", (r) => r.labels]];
@@ -145,8 +158,11 @@ function visible(skip) {
   const since = state.range ? Date.now() - state.range * DAY : 0;
   return all.filter((r) => {
     if (q && !(r.key + " " + r.summary + " " + r.assignee + " " + r.labels.join(" ")).toLowerCase().includes(q)) return false;
-    for (const [k, , get] of DIMS) if (k !== skip && state[k] && !get(r).includes(state[k])) return false;
-    if (state.state && r.category !== state.state) return false;
+    for (const [k, , get] of DIMS) {
+      if (k === skip) continue;
+      const sel = state[k], vals = get(r);
+      if (MULTI.has(k) ? sel.length && !vals.some((v) => sel.includes(v)) : sel && !vals.includes(sel)) return false;
+    }
     if (since && !(ts(r.created) >= since)) return false;
     return true;
   });
@@ -163,34 +179,52 @@ function renderFilters() {
   const f = $("filters");
   if (!f.firstChild) {
     f.innerHTML = '<input type="search" id="q" placeholder="Search key, summary, assignee, label…">' +
-      DIMS.map(([k, l]) => `<select id="f-${k}"></select>`).join("") +
-      '<select id="f-state"><option value="">Any state</option><option value="new">To do</option>' +
-      '<option value="indeterminate">In progress</option><option value="done">Done</option></select>' +
+      DIMS.map(([k]) => (MULTI.has(k) ? `<details class="ms" id="f-${k}"><summary></summary><div class="menu"></div></details>`
+                                      : `<select id="f-${k}"></select>`)).join("") +
       '<select id="f-range"><option value="">Created: any time</option><option value="30">last 30 days</option>' +
       '<option value="90">last 90 days</option><option value="365">last year</option></select>' +
       '<button id="clear">Clear</button>';
     $("q").oninput = (e) => { state.q = e.target.value; state.shown = 100; render(false); };
+    // For multi-pick filters the change event bubbles up from the checkbox inside the menu.
     for (const [k] of DIMS) $("f-" + k).onchange = (e) => set(k, e.target.value);
-    $("f-state").onchange = (e) => set("state", e.target.value);
     $("f-range").onchange = (e) => set("range", e.target.value);
-    $("clear").onclick = () => { for (const k of ["q", "state", "range", ...DIMS.map((d) => d[0])]) state[k] = ""; $("q").value = ""; render(); };
+    $("clear").onclick = () => {
+      for (const [k] of DIMS) state[k] = MULTI.has(k) ? [] : "";
+      state.q = ""; state.range = ""; $("q").value = ""; render();
+    };
   }
   // Options of each dropdown come from the rows that match all *other* filters, so you never pick an empty combination.
   for (const [k, l, get] of DIMS) {
-    const sel = $("f-" + k), opts = counts(visible(k), get);
-    if (state[k] && !opts.some((o) => o[0] === state[k])) opts.unshift([state[k], 0]);
-    sel.innerHTML = `<option value="">${esc(l)}: all</option>` +
-      opts.map(([v, n]) => `<option value="${esc(v)}"${v === state[k] ? " selected" : ""}>${esc(v)} (${n})</option>`).join("");
+    const el = $("f-" + k), opts = counts(visible(k), get);
+    const chosen = MULTI.has(k) ? state[k] : state[k] ? [state[k]] : [];
+    for (const c of chosen) if (!opts.some((o) => o[0] === c)) opts.push([c, 0]);
+    if (k === "state") opts.sort((a, b) => Object.values(STATES).indexOf(a[0]) - Object.values(STATES).indexOf(b[0]));
+    if (MULTI.has(k)) {
+      const menu = el.querySelector(".menu"), top = menu.scrollTop;
+      el.querySelector("summary").textContent = `${l}: ${chosen.length ? chosen.join(", ") : "all"}`;
+      menu.innerHTML = opts.map(([v, n]) => `<label><input type="checkbox" value="${esc(v)}"${isOn(k, v) ? " checked" : ""}> ${esc(v)} <span class="muted">(${n})</span></label>`).join("");
+      menu.scrollTop = top;
+    } else {
+      el.innerHTML = `<option value="">${esc(l)}: all</option>` +
+        opts.map(([v, n]) => `<option value="${esc(v)}"${v === state[k] ? " selected" : ""}>${esc(v)} (${n})</option>`).join("");
+    }
   }
-  $("f-state").value = state.state; $("f-range").value = state.range;
+  $("f-range").value = state.range;
 }
 
-function set(k, v) { state[k] = state[k] === v ? "" : v; state.shown = 100; render(); }
+function set(k, v) {
+  if (MULTI.has(k)) { const i = state[k].indexOf(v); if (i < 0) state[k].push(v); else state[k].splice(i, 1); }
+  else state[k] = state[k] === v ? "" : v;
+  state.shown = 100; render();
+}
+document.addEventListener("click", (e) => {  // close an open multi-pick menu when clicking elsewhere
+  for (const d of document.querySelectorAll("details.ms[open]")) if (!d.contains(e.target)) d.open = false;
+});
 
 function renderChips() {
-  const active = DIMS.filter(([k]) => state[k]).map(([k, l]) => [k, `${l}: ${state[k]}`]);
-  $("chips").innerHTML = active.map(([k, t]) => `<span class="chip">${esc(t)}<button data-k="${k}" aria-label="remove">✕</button></span>`).join("");
-  for (const b of $("chips").querySelectorAll("button")) b.onclick = () => set(b.dataset.k, state[b.dataset.k]);
+  const active = DIMS.flatMap(([k, l]) => (MULTI.has(k) ? state[k] : state[k] ? [state[k]] : []).map((v) => [k, v, `${l}: ${v}`]));
+  $("chips").innerHTML = active.map(([k, v, t]) => `<span class="chip">${esc(t)}<button data-k="${k}" data-v="${esc(v)}" aria-label="remove">✕</button></span>`).join("");
+  for (const b of $("chips").querySelectorAll("button")) b.onclick = () => set(b.dataset.k, b.dataset.v);
 }
 
 function renderKpis(rows) {
@@ -210,7 +244,7 @@ function renderBars(id, key, rows, limit) {
   const el = $(id);
   if (!data.length) { el.innerHTML = '<div class="empty" style="grid-column:1/-1">no data</div>'; return; }
   el.innerHTML = data.map(([v, n]) => `<div class="name" data-k="${key}" data-v="${esc(v)}" title="${esc(v)}">${esc(v)}</div>` +
-    `<div class="track"><div class="fill${state[key] === v ? " on" : ""}" data-k="${key}" data-v="${esc(v)}" style="width:${(100 * n / max).toFixed(1)}%"></div></div>` +
+    `<div class="track"><div class="fill${isOn(key, v) ? " on" : ""}" data-k="${key}" data-v="${esc(v)}" style="width:${(100 * n / max).toFixed(1)}%"></div></div>` +
     `<div class="n">${n}</div>`).join("");
   for (const e of el.querySelectorAll("[data-k]")) e.onclick = () => set(e.dataset.k, e.dataset.v);
 }
